@@ -64,6 +64,12 @@ export default function StationChart({ station }: StationChartProps) {
         <div className="h-[200px] flex items-center justify-center">
           <div className="w-5 h-5 border-2 border-[var(--accent-cyan)] border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : data.length === 0 ? (
+        <div className="h-[200px] flex items-center justify-center">
+          <p className="text-xs text-[var(--text-muted)] italic">
+            No readings recorded yet — waiting for sensor data…
+          </p>
+        </div>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart
@@ -99,7 +105,7 @@ export default function StationChart({ station }: StationChartProps) {
               }}
               labelStyle={{ color: "#94a3b8", marginBottom: 4 }}
               itemStyle={{ padding: 0 }}
-              formatter={(value: number) => [`${value}°C`]}
+              formatter={(value: number | string | ReadonlyArray<number | string> | undefined) => [`${value}°C`]}
             />
             <Legend
               verticalAlign="top"

@@ -3,12 +3,14 @@
  * =======================================
  * Assembles all sub-components into a single operations-center
  * layout with:
- *   • Top bar  – branding + live clock
+ *   • Top bar  – branding + live indicator + live clock
  *   • Row 1    – Status summary cards
  *   • Row 2    – Map (left) + Detail/Chart + Tickets (right)
+ *
+ * Polls GET /api/stations/status every 5s for live updates.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Radar, Satellite, Wifi } from "lucide-react";
 import type { Station } from "../types";
 import { fetchStations } from "../services/api";
@@ -19,20 +21,50 @@ import StationDetail from "../components/StationDetail";
 import StationChart from "../components/StationChart";
 import TicketPanel from "../components/TicketPanel";
 
+/** Polling interval in milliseconds */
+const POLL_INTERVAL = 5_000;
+
 export default function Dashboard() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selected, setSelected] = useState<Station | null>(null);
   const [clock, setClock] = useState(new Date());
+  const [isLive, setIsLive] = useState(false);
 
-  /* Fetch stations on mount */
-  useEffect(() => {
-    fetchStations().then((data) => {
-      setStations(data);
-      // Auto-select first non-normal station for immediate visual impact
-      const interesting = data.find((s) => s.status !== "NORMAL");
-      if (interesting) setSelected(interesting);
-    });
+  // Ref to keep the selected station id stable across polls
+  const selectedIdRef = useRef<string | null>(null);
+
+  /** Fetch stations and update state, preserving selection */
+  const loadStations = useCallback(async () => {
+    const { data, live } = await fetchStations();
+    setStations(data);
+    setIsLive(live);
+
+    // Update the selected station object with fresh data
+    if (selectedIdRef.current) {
+      const updated = data.find((s) => s.id === selectedIdRef.current);
+      if (updated) setSelected(updated);
+    }
   }, []);
+
+  /* Fetch on mount + poll every 5s */
+  useEffect(() => {
+    // Initial fetch
+    loadStations().then(() => {
+      // Auto-select first non-normal station for immediate visual impact
+      setStations((prev) => {
+        const interesting = prev.find((s) => s.status !== "NORMAL");
+        if (interesting && !selectedIdRef.current) {
+          selectedIdRef.current = interesting.id;
+          setSelected(interesting);
+        }
+        return prev;
+      });
+    });
+
+    // Polling interval
+    const id = setInterval(loadStations, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [loadStations]);
 
   /* Live clock */
   useEffect(() => {
@@ -41,8 +73,16 @@ export default function Dashboard() {
   }, []);
 
   const handleSelectStation = useCallback((station: Station) => {
+    selectedIdRef.current = station.id;
     setSelected(station);
   }, []);
+
+  const handleSelectStationById = useCallback((stationId: string) => {
+    const target = stations.find((s) => s.id === stationId);
+    if (target) {
+      handleSelectStation(target);
+    }
+  }, [stations, handleSelectStation]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[var(--bg-primary)]">
@@ -65,12 +105,27 @@ export default function Dashboard() {
 
         {/* Center – Status indicator */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
-            <span className="w-2 h-2 rounded-full bg-[var(--accent-green)] pulse-live" />
-            <span>System Online</span>
+          {/* Live / Demo indicator */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isLive
+                  ? "bg-[var(--accent-green)] pulse-live"
+                  : "bg-amber-500 animate-pulse"
+              }`}
+            />
+            <span
+              className={`font-semibold ${
+                isLive
+                  ? "text-[var(--accent-green)]"
+                  : "text-amber-500"
+              }`}
+            >
+              {isLive ? "Live" : "Demo"}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
-            <Wifi size={12} className="text-[var(--accent-green)]" />
+            <Wifi size={12} className={isLive ? "text-[var(--accent-green)]" : "text-amber-500"} />
             <span>{stations.length} Nodes</span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
@@ -132,7 +187,7 @@ export default function Dashboard() {
 
                 {/* Tickets panel fills remaining height */}
                 <div className="flex-1 min-h-0">
-                  <TicketPanel />
+                  <TicketPanel onSelectStation={handleSelectStationById} />
                 </div>
               </>
             ) : (
@@ -152,7 +207,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex-1 min-h-0">
-                  <TicketPanel />
+                  <TicketPanel onSelectStation={handleSelectStationById} />
                 </div>
               </>
             )}

@@ -3,12 +3,13 @@
  * ==================================================
  * Shows the station's identity, current status, the three
  * temperature values with visual comparison bars, and key
- * delta metrics.
+ * delta metrics.  All data comes from the live Station object
+ * returned by GET /api/stations/status.
  */
 
-import { Thermometer, MapPin, Clock, Hash } from "lucide-react";
+import { MapPin, Clock, Hash, Sparkles, HelpCircle } from "lucide-react";
 import type { Station } from "../types";
-import { DECISION_META } from "../types";
+import { DECISION_META, SEVERITY_COLORS } from "../types";
 
 interface StationDetailProps {
   station: Station;
@@ -21,7 +22,7 @@ function TempPill({
   color,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   color: string;
 }) {
   return (
@@ -36,18 +37,30 @@ function TempPill({
         {label}
       </span>
       <span className="text-lg font-bold" style={{ color }}>
-        {value}°C
+        {value != null ? `${value.toFixed(1)}°C` : "—"}
       </span>
     </div>
   );
 }
 
 export default function StationDetail({ station }: StationDetailProps) {
-  const meta = DECISION_META[station.status];
+  const meta = DECISION_META[station.status] ?? DECISION_META.NORMAL;
+  const sevColor = SEVERITY_COLORS[station.severity] ?? SEVERITY_COLORS.LOW;
 
-  const diffAW = Math.abs(station.t_aws - station.t_witness).toFixed(2);
-  const diffAP = Math.abs(station.t_aws - station.t_predicted).toFixed(2);
-  const diffWP = Math.abs(station.t_witness - station.t_predicted).toFixed(2);
+  const statusUpper = String(station.status ?? "").toUpperCase();
+  const isImputed = Boolean(station.is_imputed) || statusUpper === "PRIMARY_DRIFT";
+
+  const tAws = station.t_aws ?? 0;
+  const tWit = station.t_witness ?? 0;
+  const tPred = station.t_predicted ?? 0;
+  const hasTemps = station.t_aws != null && station.t_witness != null && station.t_predicted != null;
+
+  const computedImputed = station.t_imputed ?? (station.t_witness != null && station.t_predicted != null ? Number(((0.6 * station.t_witness) + (0.4 * station.t_predicted)).toFixed(1)) : null);
+  const origAws = station.original_t_aws ?? station.t_aws;
+
+  const diffAW = Math.abs(tAws - tWit).toFixed(2);
+  const diffAP = Math.abs(tAws - tPred).toFixed(2);
+  const diffWP = Math.abs(tWit - tPred).toFixed(2);
 
   return (
     <div className="glass-card p-4 animate-slide-up h-full flex flex-col gap-4 overflow-y-auto">
@@ -74,6 +87,16 @@ export default function StationDetail({ station }: StationDetailProps) {
             >
               {meta.label}
             </span>
+            {/* Severity badge */}
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ml-1"
+              style={{
+                backgroundColor: `${sevColor}18`,
+                color: sevColor,
+              }}
+            >
+              {station.severity}
+            </span>
           </div>
         </div>
       </div>
@@ -88,29 +111,138 @@ export default function StationDetail({ station }: StationDetailProps) {
           <MapPin size={12} className="text-[var(--text-muted)]" />
           {station.lat.toFixed(2)}°N, {station.lng.toFixed(2)}°E
         </div>
-        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+        <div className="flex items-center gap-1.5 text-[var(--text-secondary)] col-span-2">
           <Clock size={12} className="text-[var(--text-muted)]" />
-          {new Date(station.lastSeen).toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
-        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-          <Thermometer size={12} className="text-[var(--text-muted)]" />
-          {station.totalReadings} readings
+          {station.lastUpdated
+            ? new Date(station.lastUpdated).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })
+            : "No data yet"}
         </div>
       </div>
+
+      {/* Dedicated Root Cause Section */}
+      <div
+        className="p-3.5 rounded-xl border animate-fade-in flex flex-col gap-2 relative overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${meta.color}14, rgba(15, 23, 42, 0.7))`,
+          borderColor: `${meta.color}35`,
+          boxShadow: `0 0 15px ${meta.color}0D`,
+        }}
+      >
+        {/* Card Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <HelpCircle size={14} style={{ color: meta.color }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Why This Decision?
+            </span>
+          </div>
+          <span
+            className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+            style={{
+              backgroundColor: `${meta.color}20`,
+              color: meta.color,
+              border: `1px solid ${meta.color}40`,
+            }}
+          >
+            {meta.label}
+          </span>
+        </div>
+
+        {/* 1-Line Judge-Friendly Summary */}
+        <div className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+          <span>{meta.summary}</span>
+        </div>
+
+        {/* Detailed Reason Box */}
+        <div className="text-[11px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-primary)]/50 p-2.5 rounded-lg border border-white/5 font-mono">
+          {station.reason || "All sensor metrics remain within nominal threshold limits."}
+        </div>
+
+        {/* Mention Imputation for PRIMARY_DRIFT when active */}
+        {isImputed && (
+          <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/25">
+            <Sparkles size={13} className="shrink-0 animate-pulse text-emerald-400" />
+            <span>
+              <strong>Imputation Active:</strong> Corrected reading of{" "}
+              <strong className="text-emerald-300 font-bold">
+                {computedImputed != null ? `${computedImputed.toFixed(1)}°C` : "—"}
+              </strong>{" "}
+              generated to replace drifted AWS value ({origAws != null ? `${origAws.toFixed(1)}°C` : "—"}).
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Imputation Comparison Section (Only when isImputed is true) */}
+      {isImputed && (
+        <div
+          className="p-3.5 rounded-xl border animate-fade-in flex flex-col gap-2.5"
+          style={{
+            background: "linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(245, 158, 11, 0.05))",
+            borderColor: "rgba(34, 197, 94, 0.3)",
+            boxShadow: "0 0 15px rgba(34, 197, 94, 0.08)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Sparkles size={14} className="text-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                Imputed Temperature
+              </span>
+            </div>
+            <span className="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              CORRECTED
+            </span>
+          </div>
+
+          <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+            AWS sensor drift detected. Temperature corrected using 60% Witness + 40% Predicted weights.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 mt-0.5">
+            {/* Original AWS (Drifted) */}
+            <div className="flex flex-col p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25">
+              <div className="flex items-center justify-between text-[10px] text-amber-400 font-semibold mb-1">
+                <span>Original AWS</span>
+                <span className="text-[9px] bg-amber-500/20 px-1 py-0.5 rounded text-amber-300">Drifted</span>
+              </div>
+              <span className="text-base font-bold text-amber-400 line-through opacity-80">
+                {origAws != null ? `${origAws.toFixed(1)}°C` : "—"}
+              </span>
+            </div>
+
+            {/* Imputed Value (Corrected) */}
+            <div className="flex flex-col p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold mb-1">
+                <span>Imputed Value</span>
+                <span className="text-[9px] bg-emerald-500/20 px-1 py-0.5 rounded text-emerald-300">Corrected</span>
+              </div>
+              <span className="text-base font-bold text-emerald-400">
+                {computedImputed != null ? `${computedImputed.toFixed(1)}°C` : "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Separator */}
       <div className="h-px bg-[var(--border-subtle)]" />
 
-      {/* Three temperature values */}
+      {/* Temperature values */}
       <div>
         <h4 className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] mb-2">
           Temperature Comparison
         </h4>
-        <div className="grid grid-cols-3 gap-2">
-          <TempPill label="AWS" value={station.t_aws} color="#f59e0b" />
+        <div className={`grid gap-2 ${isImputed ? "grid-cols-4" : "grid-cols-3"}`}>
+          <TempPill label={isImputed ? "AWS (Orig)" : "AWS"} value={origAws} color="#f59e0b" />
+          {isImputed && (
+            <TempPill label="Imputed" value={computedImputed} color="#10b981" />
+          )}
           <TempPill label="Witness" value={station.t_witness} color="#22c55e" />
           <TempPill label="Predicted" value={station.t_predicted} color="#a855f7" />
         </div>
@@ -119,32 +251,34 @@ export default function StationDetail({ station }: StationDetailProps) {
       {/* Separator */}
       <div className="h-px bg-[var(--border-subtle)]" />
 
-      {/* Delta metrics */}
-      <div>
-        <h4 className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] mb-2">
-          Divergence Metrics
-        </h4>
-        <div className="space-y-2">
-          <DeltaRow
-            label="|AWS − Witness|"
-            value={diffAW}
-            threshold={2.0}
-            exceeded={parseFloat(diffAW) > 2.0}
-          />
-          <DeltaRow
-            label="|AWS − Predicted|"
-            value={diffAP}
-            threshold={2.0}
-            exceeded={parseFloat(diffAP) > 2.0}
-          />
-          <DeltaRow
-            label="|Witness − Pred|"
-            value={diffWP}
-            threshold={1.5}
-            exceeded={parseFloat(diffWP) > 1.5}
-          />
+      {/* Delta metrics (only when we have temperature data) */}
+      {hasTemps && (
+        <div>
+          <h4 className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] mb-2">
+            Divergence Metrics
+          </h4>
+          <div className="space-y-2">
+            <DeltaRow
+              label="|AWS − Witness|"
+              value={diffAW}
+              threshold={2.0}
+              exceeded={parseFloat(diffAW) > 2.0}
+            />
+            <DeltaRow
+              label="|AWS − Predicted|"
+              value={diffAP}
+              threshold={2.0}
+              exceeded={parseFloat(diffAP) > 2.0}
+            />
+            <DeltaRow
+              label="|Witness − Pred|"
+              value={diffWP}
+              threshold={1.5}
+              exceeded={parseFloat(diffWP) > 1.5}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Float,
@@ -73,6 +74,12 @@ class AnomalyEvent(Base):
     decision: str = Column(SAEnum(AnomalyDecision), nullable=False, index=True)
     reason: str = Column(Text, nullable=False)
     severity: str = Column(SAEnum(Severity), nullable=False, default=Severity.LOW)
+    confidence: float = Column(Float, nullable=False, default=0.0)
+
+    # Imputation fields
+    is_imputed: bool = Column(Boolean, nullable=False, default=False)
+    t_imputed: Optional[float] = Column(Float, nullable=True)
+    original_t_aws: float = Column(Float, nullable=False)
 
     # Deltas recorded at decision time
     diff_aws_witness: float = Column(Float, nullable=False)
@@ -108,6 +115,10 @@ class AnomalyEventResponse(BaseModel):
     decision: AnomalyDecision
     reason: str
     severity: Severity
+    confidence: float
+    is_imputed: bool = False
+    t_imputed: Optional[float] = None
+    original_t_aws: Optional[float] = None
     diff_aws_witness: float
     diff_witness_pred: float
     diff_aws_pred: float
@@ -145,9 +156,13 @@ class ArbitrationResponse(BaseModel):
     decision: AnomalyDecision
     reason: str
     severity: Severity
+    confidence: float
     t_aws: float
     t_witness: float
     t_predicted: float
+    is_imputed: bool = False
+    t_imputed: Optional[float] = None
+    original_t_aws: Optional[float] = None
     diff_aws_witness: float
     diff_witness_pred: float
     diff_aws_pred: float

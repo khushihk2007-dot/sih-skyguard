@@ -13,18 +13,23 @@ export type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 /** Data source stream identifier */
 export type DataSource = "AWS" | "WITNESS";
 
-/* ─── Station with geo-coordinates (for map rendering) ─── */
+/* ─── Station with geo-coordinates and live status ─── */
+/* Matches the backend GET /api/stations/status response shape */
 export interface Station {
-  id: string;
+  id: string;           // station_id from backend (e.g. "AWS-DEL-001")
   name: string;
-  lat: number;
-  lng: number;
-  status: AnomalyDecision;
-  t_aws: number;
-  t_witness: number;
-  t_predicted: number;
-  lastSeen: string;
-  totalReadings: number;
+  lat: number;          // latitude from backend
+  lng: number;          // longitude from backend
+  status: AnomalyDecision;  // latest decision (NORMAL by default)
+  severity: Severity;        // latest severity
+  t_aws: number | null;
+  t_witness: number | null;
+  t_predicted: number | null;
+  is_imputed?: boolean;
+  t_imputed?: number | null;
+  original_t_aws?: number | null;
+  reason: string | null;
+  lastUpdated: string | null; // ISO datetime of latest anomaly event
 }
 
 /* ─── Sensor reading from the API ─── */
@@ -49,6 +54,10 @@ export interface AnomalyTicket {
   decision: AnomalyDecision;
   reason: string;
   severity: Severity;
+  confidence: number;
+  is_imputed: boolean;
+  t_imputed: number | null;
+  original_t_aws: number;
   diff_aws_witness: number;
   diff_witness_pred: number;
   diff_aws_pred: number;
@@ -80,9 +89,13 @@ export interface ArbitrationResponse {
   decision: AnomalyDecision;
   reason: string;
   severity: Severity;
+  confidence: number;
   t_aws: number;
   t_witness: number;
   t_predicted: number;
+  is_imputed: boolean;
+  t_imputed: number | null;
+  original_t_aws: number;
   diff_aws_witness: number;
   diff_witness_pred: number;
   diff_aws_pred: number;
@@ -100,6 +113,7 @@ export interface ChartDataPoint {
 /* ─── Decision UI metadata ─── */
 export interface DecisionMeta {
   label: string;
+  summary: string;
   color: string;
   glow: string;
   icon: string;
@@ -110,6 +124,7 @@ export interface DecisionMeta {
 export const DECISION_META: Record<AnomalyDecision, DecisionMeta> = {
   NORMAL: {
     label: "Normal",
+    summary: "All sensors are consistent",
     color: "#22c55e",
     glow: "rgba(34, 197, 94, 0.15)",
     icon: "✓",
@@ -117,6 +132,7 @@ export const DECISION_META: Record<AnomalyDecision, DecisionMeta> = {
   },
   PRIMARY_DRIFT: {
     label: "Primary Drift",
+    summary: "Official sensor has drifted",
     color: "#f59e0b",
     glow: "rgba(245, 158, 11, 0.15)",
     icon: "⚠",
@@ -124,6 +140,7 @@ export const DECISION_META: Record<AnomalyDecision, DecisionMeta> = {
   },
   WITNESS_FAULT: {
     label: "Witness Fault",
+    summary: "Witness node is faulty",
     color: "#ef4444",
     glow: "rgba(239, 68, 68, 0.15)",
     icon: "✕",
@@ -131,6 +148,7 @@ export const DECISION_META: Record<AnomalyDecision, DecisionMeta> = {
   },
   TRUE_EXTREME: {
     label: "True Extreme",
+    summary: "Genuine extreme weather detected",
     color: "#3b82f6",
     glow: "rgba(59, 130, 246, 0.15)",
     icon: "⚡",

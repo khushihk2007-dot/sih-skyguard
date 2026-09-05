@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════════════
+# The Witness Network – Docker Compose
+# ═══════════════════════════════════════════════════════════════════
+# Start the full stack with:
+#   docker compose up --build
+#
+# Then open:
+#   http://localhost           → Dashboard (Nginx serving React SPA)
+#   http://localhost:8000/docs → FastAPI Swagger UI (direct backend)
+#
+# To also run the simulator against the containerised backend:
+#   pip install httpx
+#   python backend/scripts/simulate_stations.py --interval 4
+#   (the script POSTs to http://localhost:8000 by default)
+# ═══════════════════════════════════════════════════════════════════
+
+services:
+  # ── Backend (FastAPI + SQLite) ───────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: witness-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the SQLite database across restarts
+      - sqlite-data:/app
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./witness_network.db
+      - CORS_ORIGINS=["http://localhost","http://localhost:5173","http://localhost:3000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Frontend (React SPA via Nginx) ──────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: witness-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:

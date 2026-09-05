@@ -108,36 +108,54 @@ export default function MapView({
                       {meta.label}
                     </span>
                   </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 4,
-                      fontSize: 11,
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>AWS</span>
-                      <br />
-                      <span style={{ color: "#f59e0b", fontWeight: 600 }}>
-                        {station.t_aws}°C
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>Witness</span>
-                      <br />
-                      <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                        {station.t_witness}°C
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ color: "#94a3b8" }}>Predicted</span>
-                      <br />
-                      <span style={{ color: "#a855f7", fontWeight: 600 }}>
-                        {station.t_predicted}°C
-                      </span>
-                    </div>
-                  </div>
+                  {/* Temperature values grid */}
+                  {(() => {
+                    const isImputed = station.is_imputed || station.status === "PRIMARY_DRIFT";
+                    const tImp = station.t_imputed ?? (station.t_witness != null && station.t_predicted != null ? Number(((0.6 * station.t_witness) + (0.4 * station.t_predicted)).toFixed(1)) : null);
+                    const origAws = station.original_t_aws ?? station.t_aws;
+
+                    return (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: isImputed ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
+                          gap: 4,
+                          fontSize: 11,
+                        }}
+                      >
+                        <div>
+                          <span style={{ color: "#94a3b8" }}>{isImputed ? "AWS (Orig)" : "AWS"}</span>
+                          <br />
+                          <span style={{ color: "#f59e0b", fontWeight: 600, textDecoration: isImputed ? "line-through" : "none" }}>
+                            {origAws != null ? `${origAws}°C` : "—"}
+                          </span>
+                        </div>
+                        {isImputed && (
+                          <div>
+                            <span style={{ color: "#34d399", fontWeight: 700 }}>Imputed</span>
+                            <br />
+                            <span style={{ color: "#34d399", fontWeight: 700 }}>
+                              {tImp != null ? `${tImp}°C` : "—"}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <span style={{ color: "#94a3b8" }}>Witness</span>
+                          <br />
+                          <span style={{ color: "#22c55e", fontWeight: 600 }}>
+                            {station.t_witness != null ? `${station.t_witness}°C` : "—"}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ color: "#94a3b8" }}>Predicted</span>
+                          <br />
+                          <span style={{ color: "#a855f7", fontWeight: 600 }}>
+                            {station.t_predicted != null ? `${station.t_predicted}°C` : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <p
                     style={{
                       color: "#64748b",
@@ -147,7 +165,10 @@ export default function MapView({
                       paddingTop: 6,
                     }}
                   >
-                    {station.id} · {station.totalReadings} readings
+                    {station.id}
+                    {station.lastUpdated
+                      ? ` · ${new Date(station.lastUpdated).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+                      : " · awaiting data"}
                   </p>
                 </div>
               </Popup>

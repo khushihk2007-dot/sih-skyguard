@@ -12,10 +12,13 @@ POST /api/ingest/arbitrate → Manual ad-hoc arbitration
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 from app.core.database import get_db
 from app.models.sensor_data import (
     BulkIngestRequest,
+    DataSource,
+    SensorReading,
     SensorReadingCreate,
     SensorReadingResponse,
 )
@@ -97,20 +100,56 @@ async def ingest_batch(
     description=(
         "Provide T_AWS, T_Witness, and optionally T_Predicted to run "
         "a one-off arbitration evaluation. The result is persisted as "
-        "an anomaly event. If T_Predicted is omitted, the prediction "
-        "service generates one from historical data."
+        "an anomaly event. If T_Predicted is omitted, the spatial IDW "
+        "prediction service generates one from neighbouring stations. "
+        "Both sensor values are also persisted as SensorReading rows "
+        "so the prediction service accumulates real historical data."
     ),
 )
 async def manual_arbitration(
     payload: ArbitrationRequest,
     db: AsyncSession = Depends(get_db),
 ) -> ArbitrationResponse:
-    """Execute an ad-hoc arbitration and persist the result."""
-    # Resolve T_Predicted if not provided
+    """Execute an ad-hoc arbitration and persist the result.
+
+    Side-effects:
+      1. Persists t_aws as a DataSource.AWS SensorReading row.
+      2. Persists t_witness as a DataSource.WITNESS SensorReading row.
+      3. Resolves T_Predicted via spatial IDW (or uses payload value).
+      4. Runs Three-Way Arbitration and persists the AnomalyEvent.
+    """
+    now = datetime.utcnow()
+
+    # ── 1. Persist the AWS reading ────────────────────────────────────
+    aws_row = SensorReading(
+        station_id=payload.station_id,
+        source=DataSource.AWS,
+        temperature=payload.t_aws,
+        recorded_at=now,
+        received_at=now,
+    )
+    db.add(aws_row)
+
+    # ── 2. Persist the Witness reading ───────────────────────────────
+    wit_row = SensorReading(
+        station_id=payload.station_id,
+        source=DataSource.WITNESS,
+        temperature=payload.t_witness,
+        recorded_at=now,
+        received_at=now,
+    )
+    db.add(wit_row)
+
+    # Commit readings now so the IDW prediction query can see them
+    # (and so they are durable even if arbitration fails)
+    await db.commit()
+
+    # ── 3. Resolve T_Predicted ───────────────────────────────────────
     t_predicted: float = payload.t_predicted or await predict_temperature(
         station_id=payload.station_id, db=db
     )
 
+    # ── 4. Run arbitration (also commits the event) ──────────────────
     result = await run_arbitration(
         station_id=payload.station_id,
         t_aws=payload.t_aws,
@@ -121,3 +160,4 @@ async def manual_arbitration(
         delta=payload.delta,
     )
     return result
+

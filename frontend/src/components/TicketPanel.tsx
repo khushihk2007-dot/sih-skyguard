@@ -12,15 +12,31 @@ import type { AnomalyTicket } from "../types";
 import { DECISION_META, SEVERITY_COLORS } from "../types";
 import { fetchTickets } from "../services/api";
 
-export default function TicketPanel() {
+interface TicketPanelProps {
+  onSelectStation?: (stationId: string) => void;
+}
+
+export default function TicketPanel({ onSelectStation }: TicketPanelProps) {
   const [tickets, setTickets] = useState<AnomalyTicket[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchTickets(15).then((data) => {
-      setTickets(data);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    async function load() {
+      const { data } = await fetchTickets(15);
+      if (!cancelled) {
+        setTickets(data);
+        setLoading(false);
+      }
+    }
+
+    load();
+    const id = setInterval(load, 5_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   /** Format a relative timestamp (e.g. "3m ago") */
@@ -62,7 +78,13 @@ export default function TicketPanel() {
           </div>
         ) : (
           tickets.map((ticket, i) => (
-            <TicketRow key={ticket.id} ticket={ticket} index={i} timeAgo={timeAgo} />
+            <TicketRow
+              key={ticket.id}
+              ticket={ticket}
+              index={i}
+              timeAgo={timeAgo}
+              onSelectStation={onSelectStation}
+            />
           ))
         )}
       </div>
@@ -75,35 +97,38 @@ function TicketRow({
   ticket,
   index,
   timeAgo,
+  onSelectStation,
 }: {
   ticket: AnomalyTicket;
   index: number;
   timeAgo: (iso: string) => string;
+  onSelectStation?: (stationId: string) => void;
 }) {
-  const meta = DECISION_META[ticket.decision];
-  const sevColor = SEVERITY_COLORS[ticket.severity];
+  const meta = DECISION_META[ticket.decision] ?? DECISION_META.NORMAL;
+  const sevColor = SEVERITY_COLORS[ticket.severity] ?? SEVERITY_COLORS.LOW;
 
   return (
     <div
       className="p-3 rounded-lg transition-all duration-200 cursor-pointer animate-fade-in"
       style={{
-        background: `linear-gradient(135deg, ${meta.color}08, transparent)`,
-        border: `1px solid ${meta.color}15`,
+        background: `linear-gradient(135deg, ${meta.color}0B, rgba(15, 23, 42, 0.4))`,
+        border: `1px solid ${meta.color}25`,
         animationDelay: `${index * 40}ms`,
         animationFillMode: "backwards",
       }}
+      onClick={() => onSelectStation?.(ticket.station_id)}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = `linear-gradient(135deg, ${meta.color}15, transparent)`;
-        e.currentTarget.style.borderColor = `${meta.color}30`;
+        e.currentTarget.style.background = `linear-gradient(135deg, ${meta.color}18, rgba(15, 23, 42, 0.6))`;
+        e.currentTarget.style.borderColor = `${meta.color}40`;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = `linear-gradient(135deg, ${meta.color}08, transparent)`;
-        e.currentTarget.style.borderColor = `${meta.color}15`;
+        e.currentTarget.style.background = `linear-gradient(135deg, ${meta.color}0B, rgba(15, 23, 42, 0.4))`;
+        e.currentTarget.style.borderColor = `${meta.color}25`;
       }}
     >
       {/* Top row: decision + severity + time */}
       <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span
             className="text-xs font-bold"
             style={{ color: meta.color }}
@@ -119,6 +144,11 @@ function TicketRow({
           >
             {ticket.severity}
           </span>
+          {ticket.is_imputed && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Imputed
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
           <Clock size={10} />
@@ -126,18 +156,31 @@ function TicketRow({
         </div>
       </div>
 
-      {/* Station ID */}
-      <p className="text-[11px] font-mono text-[var(--text-secondary)] mb-1">
-        {ticket.station_id}
-      </p>
+      {/* Station ID & 1-line Summary */}
+      <div className="flex items-center justify-between text-[11px] mb-1">
+        <span className="font-mono text-[var(--text-secondary)] font-semibold">
+          {ticket.station_id}
+        </span>
+        <span className="text-[10px] font-semibold" style={{ color: meta.color }}>
+          {meta.summary}
+        </span>
+      </div>
 
-      {/* Reason (truncated) */}
-      <p className="text-[10px] text-[var(--text-muted)] leading-relaxed line-clamp-2">
+      {/* Reason (Full text, fully visible without truncation) */}
+      <div className="text-[10px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-primary)]/50 p-2 rounded border border-white/5 font-mono mb-2">
         {ticket.reason}
-      </p>
+      </div>
+
+      {/* Imputation note if ticket was imputed */}
+      {ticket.is_imputed && ticket.t_imputed != null && (
+        <div className="text-[9.5px] text-emerald-400 font-medium mb-2 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 flex items-center justify-between">
+          <span>Corrected Imputed Temperature</span>
+          <strong className="text-emerald-300 font-bold">{ticket.t_imputed.toFixed(1)}°C</strong>
+        </div>
+      )}
 
       {/* Delta chips */}
-      <div className="flex gap-2 mt-2">
+      <div className="flex gap-2">
         <DeltaChip label="ΔAW" value={ticket.diff_aws_witness} />
         <DeltaChip label="ΔAP" value={ticket.diff_aws_pred} />
         <DeltaChip label="ΔWP" value={ticket.diff_witness_pred} />

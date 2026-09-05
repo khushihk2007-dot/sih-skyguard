@@ -25,6 +25,10 @@ from app.models.sensor_data import (
 from app.models.anomaly import ArbitrationResponse
 from app.services.anomaly_engine import run_arbitration
 from app.services.prediction_service import predict_temperature
+from app.services.thermodynamic_service import (
+    check_thermodynamic_consistency,
+    ConsistencyVerdict,
+)
 
 
 # ── Maximum age of a paired reading for auto-arbitration (seconds) ──
@@ -40,8 +44,12 @@ async def ingest_reading(
 
     Workflow:
         1. Save the incoming reading to the database.
-        2. Look for a recent counterpart reading from the other stream.
-        3. If a pair is found, generate a prediction and run arbitration.
+        2. **Layer 1** – Run the Thermodynamic Consistency Gate on the
+           incoming reading.  If it FAILs, skip arbitration.
+        3. Look for a recent counterpart reading from the other stream.
+        4. Run the thermodynamic gate on the counterpart as well.
+        5. If both readings pass, generate a prediction and run
+           Three-Way Arbitration (Layer 2).
 
     Parameters:
         payload – Validated sensor reading data.
@@ -71,7 +79,23 @@ async def ingest_reading(
 
     reading_response = SensorReadingResponse.model_validate(reading)
 
-    # ── Step 2: Try to find a matching counterpart ────────────────
+    # ── Step 2 (Layer 1): Thermodynamic Consistency Gate ──────────
+    if payload.humidity is not None:
+        thermo_result = await check_thermodynamic_consistency(
+            temperature=payload.temperature,
+            humidity=payload.humidity,
+            pressure=payload.pressure,
+        )
+        if thermo_result["verdict"] == ConsistencyVerdict.FAIL.value:
+            logger.warning(
+                f"[Ingest] Thermodynamic gate FAILED for incoming "
+                f"{payload.source.value} reading at "
+                f"station={payload.station_id} — skipping arbitration. "
+                f"Flags: {thermo_result['flags']}"
+            )
+            return reading_response, None
+
+    # ── Step 3: Try to find a matching counterpart ────────────────
     other_source = (
         DataSource.WITNESS
         if payload.source == DataSource.AWS
@@ -101,7 +125,23 @@ async def ingest_reading(
         )
         return reading_response, None
 
-    # ── Step 3: Determine T_AWS and T_Witness ─────────────────────
+    # ── Step 4 (Layer 1): Thermodynamic gate on counterpart ───────
+    if counterpart.humidity is not None:
+        counter_thermo = await check_thermodynamic_consistency(
+            temperature=counterpart.temperature,
+            humidity=counterpart.humidity,
+            pressure=counterpart.pressure,
+        )
+        if counter_thermo["verdict"] == ConsistencyVerdict.FAIL.value:
+            logger.warning(
+                f"[Ingest] Thermodynamic gate FAILED for counterpart "
+                f"{other_source.value} reading at "
+                f"station={payload.station_id} — skipping arbitration. "
+                f"Flags: {counter_thermo['flags']}"
+            )
+            return reading_response, None
+
+    # ── Step 5: Determine T_AWS and T_Witness ─────────────────────
     if payload.source == DataSource.AWS:
         t_aws = payload.temperature
         t_witness = counterpart.temperature
@@ -109,7 +149,7 @@ async def ingest_reading(
         t_aws = counterpart.temperature
         t_witness = payload.temperature
 
-    # ── Step 4: Generate prediction & run arbitration ─────────────
+    # ── Step 6 (Layer 2): Generate prediction & run arbitration ───
     t_predicted: float = await predict_temperature(
         station_id=payload.station_id, db=db
     )

@@ -25,6 +25,7 @@ export interface Station {
   t_aws: number | null;
   t_witness: number | null;
   t_predicted: number | null;
+  neighbours_used?: number | null;
   is_imputed?: boolean;
   t_imputed?: number | null;
   original_t_aws?: number | null;
@@ -51,6 +52,7 @@ export interface AnomalyTicket {
   t_aws: number;
   t_witness: number;
   t_predicted: number;
+  neighbours_used?: number | null;
   decision: AnomalyDecision;
   reason: string;
   severity: Severity;
@@ -93,6 +95,7 @@ export interface ArbitrationResponse {
   t_aws: number;
   t_witness: number;
   t_predicted: number;
+  neighbours_used?: number | null;
   is_imputed: boolean;
   t_imputed: number | null;
   original_t_aws: number;

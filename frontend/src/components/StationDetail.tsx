@@ -7,7 +7,7 @@
  * returned by GET /api/stations/status.
  */
 
-import { MapPin, Clock, Hash, Sparkles, HelpCircle } from "lucide-react";
+import { MapPin, Clock, Hash, Sparkles, HelpCircle, Network } from "lucide-react";
 import type { Station } from "../types";
 import { DECISION_META, SEVERITY_COLORS } from "../types";
 
@@ -246,6 +246,16 @@ export default function StationDetail({ station }: StationDetailProps) {
           <TempPill label="Witness" value={station.t_witness} color="#22c55e" />
           <TempPill label="Predicted" value={station.t_predicted} color="#a855f7" />
         </div>
+
+        {/* Spatial Context: Neighbours used for IDW prediction */}
+        {station.neighbours_used != null && (
+          <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] font-medium">
+            <Network size={12} className="text-purple-400 shrink-0" />
+            <span>
+              Predicted using {station.neighbours_used} neighbouring station{station.neighbours_used === 1 ? "" : "s"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Separator */}

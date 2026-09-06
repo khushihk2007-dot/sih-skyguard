@@ -139,6 +139,13 @@ async def station_status(
             raw_original_t_aws = getattr(latest_event, "original_t_aws", None)
             original_t_aws = raw_original_t_aws if raw_original_t_aws is not None else latest_event.t_aws
 
+            # Resolve neighbours_used
+            raw_neighbours_used = getattr(latest_event, "neighbours_used", None)
+            if raw_neighbours_used is not None:
+                neighbours_used = raw_neighbours_used
+            else:
+                _, neighbours_used = await predict_temperature(station.id, db)
+
             # Station has at least one anomaly event – use its data
             responses.append(
                 StationStatusResponse(
@@ -151,6 +158,7 @@ async def station_status(
                     t_aws=latest_event.t_aws,
                     t_witness=latest_event.t_witness,
                     t_predicted=latest_event.t_predicted,
+                    neighbours_used=neighbours_used,
                     is_imputed=is_imputed,
                     t_imputed=t_imputed,
                     original_t_aws=original_t_aws,
@@ -160,6 +168,7 @@ async def station_status(
             )
         else:
             # No anomaly data yet – return defaults
+            _, neighbours_used = await predict_temperature(station.id, db)
             responses.append(
                 StationStatusResponse(
                     station_id=station.id,
@@ -171,6 +180,7 @@ async def station_status(
                     t_aws=None,
                     t_witness=None,
                     t_predicted=None,
+                    neighbours_used=neighbours_used,
                     is_imputed=False,
                     t_imputed=None,
                     original_t_aws=None,
@@ -257,9 +267,10 @@ async def get_prediction(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Generate and return the predicted temperature for a station."""
-    predicted = await predict_temperature(station_id, db, window_size)
+    predicted, neighbours_used = await predict_temperature(station_id, db, window_size)
     return {
         "station_id": station_id,
         "t_predicted": predicted,
+        "neighbours_used": neighbours_used,
         "window_size": window_size or "default",
     }

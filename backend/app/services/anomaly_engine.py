@@ -314,6 +314,7 @@ async def run_arbitration(
     db: AsyncSession,
     epsilon: Optional[float] = None,
     delta: Optional[float] = None,
+    neighbours_used: Optional[int] = None,
 ) -> ArbitrationResponse:
     """
     Execute the full arbitration pipeline:
@@ -325,13 +326,14 @@ async def run_arbitration(
       6. Return a structured response.
 
     Parameters:
-        station_id  – Which station this evaluation is for.
-        t_aws       – AWS temperature reading (°C).
-        t_witness   – Witness node temperature reading (°C).
-        t_predicted – Predicted temperature baseline (°C).
-        db          – Active async database session.
-        epsilon     – Optional override for the epsilon threshold.
-        delta       – Optional override for the delta threshold.
+        station_id      – Which station this evaluation is for.
+        t_aws           – AWS temperature reading (°C).
+        t_witness       – Witness node temperature reading (°C).
+        t_predicted     – Predicted temperature baseline (°C).
+        db              – Active async database session.
+        epsilon         – Optional override for the epsilon threshold.
+        delta           – Optional override for the delta threshold.
+        neighbours_used – Number of neighbouring stations used for prediction.
 
     Returns:
         ArbitrationResponse with all computed fields including
@@ -373,7 +375,8 @@ async def run_arbitration(
     logger.info(
         f"[Arbitration] station={station_id} → {decision.value} "
         f"(confidence={confidence}%, severity={severity.value}, "
-        f"is_imputed={is_imputed}, t_imputed={t_imputed})"
+        f"is_imputed={is_imputed}, t_imputed={t_imputed}, "
+        f"neighbours_used={neighbours_used})"
     )
 
     # Step 6 – Persist the anomaly event
@@ -382,6 +385,7 @@ async def run_arbitration(
         t_aws=t_aws,
         t_witness=t_witness,
         t_predicted=t_predicted,
+        neighbours_used=neighbours_used,
         decision=decision,
         reason=reason,
         severity=severity,
@@ -410,6 +414,7 @@ async def run_arbitration(
         t_aws=t_aws,
         t_witness=t_witness,
         t_predicted=t_predicted,
+        neighbours_used=neighbours_used,
         is_imputed=is_imputed,
         t_imputed=t_imputed,
         original_t_aws=original_t_aws,

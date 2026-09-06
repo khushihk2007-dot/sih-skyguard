@@ -81,6 +81,9 @@ class AnomalyEvent(Base):
     t_imputed: Optional[float] = Column(Float, nullable=True)
     original_t_aws: float = Column(Float, nullable=False)
 
+    # Spatial context
+    neighbours_used: Optional[int] = Column(Integer, nullable=True, default=0)
+
     # Deltas recorded at decision time
     diff_aws_witness: float = Column(Float, nullable=False)
     diff_witness_pred: float = Column(Float, nullable=False)
@@ -112,6 +115,7 @@ class AnomalyEventResponse(BaseModel):
     t_aws: float
     t_witness: float
     t_predicted: float
+    neighbours_used: Optional[int] = None
     decision: AnomalyDecision
     reason: str
     severity: Severity
@@ -160,6 +164,7 @@ class ArbitrationResponse(BaseModel):
     t_aws: float
     t_witness: float
     t_predicted: float
+    neighbours_used: Optional[int] = None
     is_imputed: bool = False
     t_imputed: Optional[float] = None
     original_t_aws: Optional[float] = None

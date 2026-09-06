@@ -125,7 +125,7 @@ async def predict_temperature(
     station_id: str,
     db: AsyncSession,
     window_size: Optional[int] = None,
-) -> float:
+) -> tuple[float, int]:
     """
     Generate a spatially-aware predicted temperature for the given station
     using Inverse Distance Weighting (IDW) over nearby neighbour stations.
@@ -152,7 +152,8 @@ async def predict_temperature(
 
     Returns
     -------
-    Predicted temperature in °C (rounded to 2 decimal places).
+    tuple[float, int]
+        (predicted_temperature, neighbours_used)
     """
     window: int = window_size or settings.PREDICTION_WINDOW_SIZE
 
@@ -166,7 +167,7 @@ async def predict_temperature(
             f"[Predict-IDW] station={station_id} not found in registry. "
             f"Returning cold-start default {COLD_START_DEFAULT}°C."
         )
-        return COLD_START_DEFAULT
+        return COLD_START_DEFAULT, 0
 
     # ── Step 2: Load all other registered stations ────────────────────
     stmt_all = select(Station).where(Station.id != station_id)
@@ -216,7 +217,7 @@ async def predict_temperature(
             f"{len(neighbours)} neighbour(s) within {SPATIAL_RADIUS_KM} km | "
             f"IDW T_predicted={predicted:.2f}°C"
         )
-        return round(predicted, 2)
+        return round(predicted, 2), len(neighbours)
 
     # ── Step 6: No nearby neighbours – fall back to own rolling mean ──
     logger.info(
@@ -230,14 +231,14 @@ async def predict_temperature(
             f"[Predict-IDW] station={station_id} | "
             f"Own rolling mean T_predicted={own_avg:.2f}°C"
         )
-        return round(own_avg, 2)
+        return round(own_avg, 2), 0
 
     # ── Step 7: Cold-start – no data at all ───────────────────────────
     logger.warning(
         f"[Predict-IDW] station={station_id} | No historical data and no "
         f"neighbours. Returning cold-start default {COLD_START_DEFAULT}°C."
     )
-    return COLD_START_DEFAULT
+    return COLD_START_DEFAULT, 0
 
 
 # ── Station statistics (unchanged, kept for the /stats endpoint) ──────

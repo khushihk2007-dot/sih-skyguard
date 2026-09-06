@@ -94,6 +94,9 @@ class StationStatusResponse(BaseModel):
     t_predicted: Optional[float] = Field(
         None, description="Predicted temperature from latest event (°C)",
     )
+    neighbours_used: Optional[int] = Field(
+        None, description="Number of neighbouring stations used for IDW spatial prediction",
+    )
     is_imputed: bool = Field(
         default=False, description="Whether temperature was imputed (true for PRIMARY_DRIFT)",
     )

@@ -21,8 +21,8 @@ try:
     import aiomqtt
     MQTT_AVAILABLE = True
 except ImportError:
+    aiomqtt = None  # type: ignore
     MQTT_AVAILABLE = False
-    logger.warning("aiomqtt not installed – MQTT listener disabled")
 
 
 # Type alias for the callback that processes incoming witness data
@@ -44,9 +44,16 @@ class MQTTClient:
         self._callback = callback
 
     async def start(self) -> None:
-        """Begin listening in a background task."""
+        """Begin listening in a background task if MQTT is enabled and available."""
+        if not getattr(settings, "MQTT_ENABLED", False):
+            logger.info("MQTT disabled in config – skipping client startup")
+            return
+
         if not MQTT_AVAILABLE:
-            logger.info("MQTT client not started (aiomqtt unavailable)")
+            logger.warning("aiomqtt not installed – MQTT listener disabled")
+            return
+
+        if self._task and not self._task.done():
             return
 
         self._task = asyncio.create_task(self._listen())
@@ -59,14 +66,20 @@ class MQTTClient:
         """Cancel the background listener task."""
         if self._task and not self._task.done():
             self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
             logger.info("MQTT listener stopped")
 
     async def _listen(self) -> None:
         """
         Internal loop – connects to the broker, subscribes to the
         witness topic, and dispatches messages indefinitely.
-        Automatically reconnects on failure.
+        Automatically reconnects on failure without repeated error spam.
         """
+        has_logged_error = False
+
         while True:
             try:
                 async with aiomqtt.Client(
@@ -79,6 +92,7 @@ class MQTTClient:
                     logger.info(
                         f"Subscribed to topic: {settings.MQTT_TOPIC_WITNESS}"
                     )
+                    has_logged_error = False
 
                     async for message in client.messages:
                         await self._handle_message(message)
@@ -86,7 +100,13 @@ class MQTTClient:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.error(f"MQTT connection error: {exc}. Reconnecting in 5s…")
+                if not has_logged_error:
+                    logger.warning(
+                        f"MQTT connection error: {exc}. Retrying in background..."
+                    )
+                    has_logged_error = True
+                else:
+                    logger.debug(f"MQTT reconnect failed: {exc}")
                 await asyncio.sleep(5)
 
     async def _handle_message(self, message) -> None:

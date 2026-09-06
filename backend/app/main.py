@@ -151,6 +151,18 @@ async def run_migrations() -> None:
                 "🔧 Migration: added 'original_t_aws' column to anomaly_events"
             )
 
+        if "neighbours_used" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN neighbours_used INTEGER NULL"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'neighbours_used' column to anomaly_events"
+            )
+
 
 # ── Application Lifespan ─────────────────────────────────────────────
 
@@ -178,13 +190,17 @@ async def lifespan(app: FastAPI):
 
     await seed_stations()
 
-    await mqtt_client.start()
-    logger.info("✅ MQTT client started")
+    if settings.MQTT_ENABLED:
+        await mqtt_client.start()
+        logger.info("✅ MQTT client started")
+    else:
+        logger.info("MQTT disabled – skipping client startup")
 
     yield  # Application is running
 
     # ── Shutdown ──────────────────────────────────────────────────
-    await mqtt_client.stop()
+    if settings.MQTT_ENABLED:
+        await mqtt_client.stop()
     logger.info("🛑 Application shut down cleanly")
 
 

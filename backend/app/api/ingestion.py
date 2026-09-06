@@ -144,10 +144,16 @@ async def manual_arbitration(
     # (and so they are durable even if arbitration fails)
     await db.commit()
 
-    # ── 3. Resolve T_Predicted ───────────────────────────────────────
-    t_predicted: float = payload.t_predicted or await predict_temperature(
-        station_id=payload.station_id, db=db
-    )
+    # ── 3. Resolve T_Predicted & Neighbours Used ─────────────────────
+    if payload.t_predicted is not None:
+        t_predicted = payload.t_predicted
+        _, neighbours_used = await predict_temperature(
+            station_id=payload.station_id, db=db
+        )
+    else:
+        t_predicted, neighbours_used = await predict_temperature(
+            station_id=payload.station_id, db=db
+        )
 
     # ── 4. Run arbitration (also commits the event) ──────────────────
     result = await run_arbitration(
@@ -158,6 +164,7 @@ async def manual_arbitration(
         db=db,
         epsilon=payload.epsilon,
         delta=payload.delta,
+        neighbours_used=neighbours_used,
     )
     return result
 

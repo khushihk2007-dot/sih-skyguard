@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./witness_network.db"
 
     # ── MQTT Broker (for ESP32 Witness Nodes) ─────────────────────────
+    MQTT_ENABLED: bool = False
     MQTT_BROKER_HOST: str = "localhost"
     MQTT_BROKER_PORT: int = 1883
     MQTT_TOPIC_WITNESS: str = "witness/+/temperature"

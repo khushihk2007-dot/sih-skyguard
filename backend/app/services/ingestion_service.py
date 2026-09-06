@@ -150,7 +150,7 @@ async def ingest_reading(
         t_witness = payload.temperature
 
     # ── Step 6 (Layer 2): Generate prediction & run arbitration ───
-    t_predicted: float = await predict_temperature(
+    t_predicted, neighbours_used = await predict_temperature(
         station_id=payload.station_id, db=db
     )
 
@@ -159,6 +159,7 @@ async def ingest_reading(
         t_aws=t_aws,
         t_witness=t_witness,
         t_predicted=t_predicted,
+        neighbours_used=neighbours_used,
         db=db,
     )
 

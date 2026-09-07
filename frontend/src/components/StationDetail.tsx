@@ -63,7 +63,7 @@ export default function StationDetail({ station }: StationDetailProps) {
   const diffWP = Math.abs(tWit - tPred).toFixed(2);
 
   return (
-    <div className="glass-card p-4 animate-slide-up h-full flex flex-col gap-4 overflow-y-auto">
+    <div className="glass-card p-4 animate-slide-up flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-start gap-3">
         <div

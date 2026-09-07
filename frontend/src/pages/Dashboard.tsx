@@ -172,7 +172,7 @@ export default function Dashboard() {
           </div>
 
           {/* Right sidebar (takes ~35% width) */}
-          <div className="flex-[1] flex flex-col gap-3 min-w-[340px] max-w-[420px]">
+          <div className="flex-[1] flex flex-col gap-3 min-w-[340px] max-w-[420px] h-full overflow-y-auto pr-1.5">
             {selected ? (
               <>
                 {/* Station detail card */}
@@ -185,8 +185,8 @@ export default function Dashboard() {
                   <StationChart station={selected} />
                 </div>
 
-                {/* Tickets panel fills remaining height */}
-                <div className="flex-1 min-h-0">
+                {/* Tickets panel */}
+                <div className="shrink-0 h-[400px]">
                   <TicketPanel
                     onSelectStation={handleSelectStationById}
                     selectedStationId={selected?.id ?? null}
@@ -212,7 +212,7 @@ export default function Dashboard() {
                 <div className="flex-1 min-h-0">
                   <TicketPanel
                     onSelectStation={handleSelectStationById}
-                    selectedStationId={selected?.id ?? null}
+                    selectedStationId={null}
                   />
                 </div>
               </>

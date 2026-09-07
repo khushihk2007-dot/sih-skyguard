@@ -36,6 +36,7 @@ Severity quantifies *operational impact and urgency of response*.
   • Driven primarily by the magnitude of the key divergence delta.
 """
 
+import math as _math
 from datetime import datetime
 from typing import Optional
 
@@ -192,6 +193,100 @@ def compute_severity(
 
     # Fallback (should not be reached)
     return Severity.LOW
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Mahalanobis-Style Anomaly Score
+# ═════════════════════════════════════════════════════════════════════════
+
+
+def compute_mahalanobis_score(
+    t_aws: float,
+    t_witness: float,
+    t_predicted: float,
+    v1: float = settings.MAHAL_VAR_AWS_WITNESS,
+    v2: float = settings.MAHAL_VAR_AWS_PRED,
+    v3: float = settings.MAHAL_VAR_WITNESS_PRED,
+) -> float:
+    """
+    Compute a Mahalanobis-style anomaly score for the three-temperature
+    residual vector using a diagonal covariance approximation.
+
+    The score quantifies *how statistically unusual* the current reading
+    triplet is, independent of which sensor the Three-Way Arbitration
+    assigns as faulty.  It can be used as an additional confidence
+    signal in the dashboard and for future alerting.
+
+    Residual vector
+    ---------------
+    r = [r1, r2, r3]
+      r1 = T_AWS     − T_Witness    (inter-sensor divergence)
+      r2 = T_AWS     − T_Predicted  (AWS vs model)
+      r3 = T_Witness − T_Predicted  (witness vs model)
+
+    Score formula
+    -------------
+    M = sqrt( r1²/v1 + r2²/v2 + r3²/v3 )
+
+    This is the standard Mahalanobis distance with a diagonal Σ = diag(v1,v2,v3),
+    i.e. assuming the three residuals are uncorrelated (a practical
+    approximation that avoids the need for an online covariance estimator).
+
+    Interpretation bands (for display only – see mahalanobis_label())
+    -------------------------------------------------------------------
+      M ≤ 1.5  → consistent      (within ~1 σ of normal spread)
+      M ≤ 3.0  → mild anomaly    (1–2 σ above normal)
+      M  > 3.0  → strong anomaly  (>2 σ, highly unusual)
+
+    Parameters
+    ----------
+    t_aws       : AWS station temperature (°C).
+    t_witness   : Witness node temperature (°C).
+    t_predicted : ML-predicted baseline temperature (°C).
+    v1          : Expected variance of (T_AWS − T_Witness).   Default from config.
+    v2          : Expected variance of (T_AWS − T_Predicted). Default from config.
+    v3          : Expected variance of (T_Witness − T_Predicted). Default from config.
+
+    Returns
+    -------
+    Mahalanobis score ≥ 0.0, rounded to 3 decimal places.
+    """
+    r1: float = t_aws - t_witness
+    r2: float = t_aws - t_predicted
+    r3: float = t_witness - t_predicted
+
+    # Guard: avoid division by zero if a variance term is ever set to 0
+    v1 = v1 if v1 > 0 else 1e-6
+    v2 = v2 if v2 > 0 else 1e-6
+    v3 = v3 if v3 > 0 else 1e-6
+
+    score: float = _math.sqrt((r1 ** 2 / v1) + (r2 ** 2 / v2) + (r3 ** 2 / v3))
+    return round(score, 3)
+
+
+def mahalanobis_label(score: float) -> str:
+    """
+    Map a Mahalanobis score to a human-readable interpretation band.
+
+    Bands
+    -----
+      score ≤ 1.5  → "consistent"     (normal operating conditions)
+      score ≤ 3.0  → "mild anomaly"   (worth monitoring)
+      score  > 3.0  → "strong anomaly" (likely a genuine fault or event)
+
+    Parameters
+    ----------
+    score : Mahalanobis score as returned by compute_mahalanobis_score().
+
+    Returns
+    -------
+    One of: "consistent" | "mild anomaly" | "strong anomaly".
+    """
+    if score <= 1.5:
+        return "consistent"
+    if score <= 3.0:
+        return "mild anomaly"
+    return "strong anomaly"
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -363,7 +458,11 @@ async def run_arbitration(
         decision, diff_aws_witness, diff_aws_pred, diff_witness_pred
     )
 
-    # Step 5 – Handle Temperature Imputation
+    # Step 5 – Mahalanobis-style anomaly score (additional analytics signal)
+    maha_score: float = compute_mahalanobis_score(t_aws, t_witness, t_predicted)
+    maha_label: str = mahalanobis_label(maha_score)
+
+    # Step 6 – Handle Temperature Imputation
     original_t_aws = t_aws
     if decision == AnomalyDecision.PRIMARY_DRIFT:
         is_imputed = True
@@ -375,11 +474,12 @@ async def run_arbitration(
     logger.info(
         f"[Arbitration] station={station_id} → {decision.value} "
         f"(confidence={confidence}%, severity={severity.value}, "
+        f"mahalanobis={maha_score} [{maha_label}], "
         f"is_imputed={is_imputed}, t_imputed={t_imputed}, "
         f"neighbours_used={neighbours_used})"
     )
 
-    # Step 6 – Persist the anomaly event
+    # Step 7 – Persist the anomaly event
     event = AnomalyEvent(
         station_id=station_id,
         t_aws=t_aws,
@@ -390,6 +490,7 @@ async def run_arbitration(
         reason=reason,
         severity=severity,
         confidence=confidence,
+        mahalanobis_score=maha_score,
         is_imputed=is_imputed,
         t_imputed=t_imputed,
         original_t_aws=original_t_aws,
@@ -404,13 +505,15 @@ async def run_arbitration(
     await db.commit()
     await db.refresh(event)
 
-    # Step 7 – Build response
+    # Step 8 – Build response
     return ArbitrationResponse(
         station_id=station_id,
         decision=decision,
         reason=reason,
         severity=severity,
         confidence=confidence,
+        mahalanobis_score=maha_score,
+        mahalanobis_label=maha_label,
         t_aws=t_aws,
         t_witness=t_witness,
         t_predicted=t_predicted,

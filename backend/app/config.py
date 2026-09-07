@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     #   from the ML-predicted baseline.
     DELTA: float = 1.5
 
+    # ── Mahalanobis Score Variance Terms ──────────────────────────────
+    # Diagonal covariance approximation for the residual vector
+    #   r = [r1, r2, r3] = [T_AWS−T_W, T_AWS−T_P, T_W−T_P].
+    #
+    # Each v_i represents the expected variance (σ²) for that residual
+    # under normal operating conditions.  A residual of √v_i is treated
+    # as one standard deviation of "normal" spread.  Tune these to
+    # match observed baseline noise in the deployed environment.
+    #
+    #   v1 = Var(T_AWS − T_Witness)   ← typical inter-sensor spread ~1.5°C → var≈2.25
+    #   v2 = Var(T_AWS − T_Predicted) ← prediction model error ~1.0°C    → var≈1.00
+    #   v3 = Var(T_Witness − T_Pred)  ← witness vs model spread  ~1.2°C  → var≈1.44
+    MAHAL_VAR_AWS_WITNESS: float = 2.25
+    MAHAL_VAR_AWS_PRED:    float = 1.00
+    MAHAL_VAR_WITNESS_PRED: float = 1.44
+
     # ── Prediction Service ────────────────────────────────────────────
     # Number of historical readings used for rolling-window prediction
     PREDICTION_WINDOW_SIZE: int = 24

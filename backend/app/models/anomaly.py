@@ -93,6 +93,15 @@ class AnomalyEvent(Base):
     epsilon_used: float = Column(Float, nullable=False)
     delta_used: float = Column(Float, nullable=False)
 
+    # Advanced analytics – Mahalanobis-style anomaly score
+    # Quantifies the statistical distance of the residual vector from
+    # the expected-normal distribution.  Computed alongside confidence.
+    #   ≈ 0.0 – 1.5  → consistent / normal
+    #   ≈ 1.5 – 3.0  → mild anomaly
+    #   ≥ 3.0        → strong anomaly
+    # Nullable for rows created before this field was introduced.
+    mahalanobis_score: Optional[float] = Column(Float, nullable=True, default=0.0)
+
     # Timestamps
     detected_at: datetime = Column(
         DateTime, nullable=False, default=datetime.utcnow
@@ -128,6 +137,7 @@ class AnomalyEventResponse(BaseModel):
     diff_aws_pred: float
     epsilon_used: float
     delta_used: float
+    mahalanobis_score: float = 0.0
     detected_at: datetime
 
     class Config:
@@ -172,3 +182,5 @@ class ArbitrationResponse(BaseModel):
     diff_witness_pred: float
     diff_aws_pred: float
     anomaly_event_id: Optional[int] = None
+    mahalanobis_score: float = 0.0
+    mahalanobis_label: str = "consistent"

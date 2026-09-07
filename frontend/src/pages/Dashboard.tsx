@@ -187,7 +187,10 @@ export default function Dashboard() {
 
                 {/* Tickets panel fills remaining height */}
                 <div className="flex-1 min-h-0">
-                  <TicketPanel onSelectStation={handleSelectStationById} />
+                  <TicketPanel
+                    onSelectStation={handleSelectStationById}
+                    selectedStationId={selected?.id ?? null}
+                  />
                 </div>
               </>
             ) : (
@@ -207,7 +210,10 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex-1 min-h-0">
-                  <TicketPanel onSelectStation={handleSelectStationById} />
+                  <TicketPanel
+                    onSelectStation={handleSelectStationById}
+                    selectedStationId={selected?.id ?? null}
+                  />
                 </div>
               </>
             )}

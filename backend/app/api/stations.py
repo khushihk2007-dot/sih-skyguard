@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from loguru import logger
+
 from app.core.database import get_db
 from app.models.sensor_data import (
     DataSource,
@@ -139,12 +141,19 @@ async def station_status(
             raw_original_t_aws = getattr(latest_event, "original_t_aws", None)
             original_t_aws = raw_original_t_aws if raw_original_t_aws is not None else latest_event.t_aws
 
-            # Resolve neighbours_used
+            # Resolve neighbours_used:
+            # 1. Prefer latest AnomalyEvent.neighbours_used if available
+            # 2. Otherwise call predict_temperature(...) and use the returned neighbours count
+            # 3. If still unavailable, fallback to 0
             raw_neighbours_used = getattr(latest_event, "neighbours_used", None)
             if raw_neighbours_used is not None:
                 neighbours_used = raw_neighbours_used
             else:
-                _, neighbours_used = await predict_temperature(station.id, db)
+                try:
+                    _, neighbours_used = await predict_temperature(station.id, db)
+                except Exception as e:
+                    logger.warning(f"Could not calculate neighbours_used for {station.id}: {e}")
+                    neighbours_used = 0
 
             # Station has at least one anomaly event – use its data
             responses.append(
@@ -168,7 +177,12 @@ async def station_status(
             )
         else:
             # No anomaly data yet – return defaults
-            _, neighbours_used = await predict_temperature(station.id, db)
+            try:
+                _, neighbours_used = await predict_temperature(station.id, db)
+            except Exception as e:
+                logger.warning(f"Could not calculate neighbours_used for {station.id}: {e}")
+                neighbours_used = 0
+
             responses.append(
                 StationStatusResponse(
                     station_id=station.id,

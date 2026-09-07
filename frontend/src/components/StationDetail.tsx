@@ -249,10 +249,13 @@ export default function StationDetail({ station }: StationDetailProps) {
 
         {/* Spatial Context: Neighbours used for IDW prediction */}
         {station.neighbours_used != null && (
-          <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] font-medium">
-            <Network size={12} className="text-purple-400 shrink-0" />
-            <span>
-              Predicted using {station.neighbours_used} neighbouring station{station.neighbours_used === 1 ? "" : "s"}
+          <div className="mt-2.5 flex items-center justify-between text-[11px] bg-purple-500/10 border border-purple-500/25 px-2.5 py-1.5 rounded-lg text-purple-300 font-medium">
+            <div className="flex items-center gap-1.5">
+              <Network size={13} className="text-purple-400 shrink-0" />
+              <span>Spatial IDW Baseline</span>
+            </div>
+            <span className="font-mono font-bold text-purple-200">
+              {station.neighbours_used} neighbouring station{station.neighbours_used === 1 ? "" : "s"}
             </span>
           </div>
         )}

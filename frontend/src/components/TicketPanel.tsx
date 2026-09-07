@@ -312,11 +312,25 @@ function TicketRow({
         </div>
       )}
 
-      {/* ── Delta chips ── */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* ── Delta chips & Spatial Context ── */}
+      <div className="flex gap-1.5 flex-wrap items-center">
         <DeltaChip label="ΔAW" value={ticket.diff_aws_witness} />
         <DeltaChip label="ΔAP" value={ticket.diff_aws_pred} />
         <DeltaChip label="ΔWP" value={ticket.diff_witness_pred} />
+        {ticket.neighbours_used != null && (
+          <span
+            className="text-[9px] font-mono px-1.5 py-0.5 rounded-md font-semibold inline-flex items-center gap-1"
+            style={{
+              backgroundColor: "rgba(168, 85, 247, 0.10)",
+              color: "#c084fc",
+              border: "1px solid rgba(168, 85, 247, 0.25)",
+            }}
+            title={`${ticket.neighbours_used} neighbouring stations used for spatial IDW prediction`}
+          >
+            <span>🌐</span>
+            {ticket.neighbours_used} neighbours
+          </span>
+        )}
       </div>
     </div>
   );

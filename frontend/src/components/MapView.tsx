@@ -156,6 +156,27 @@ export default function MapView({
                       </div>
                     );
                   })()}
+                  {station.neighbours_used != null && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        fontSize: 10,
+                        color: "#c084fc",
+                        background: "rgba(168, 85, 247, 0.12)",
+                        padding: "3px 6px",
+                        borderRadius: 6,
+                        border: "1px solid rgba(168, 85, 247, 0.25)",
+                      }}
+                    >
+                      <span>🌐</span>
+                      <span>
+                        Predicted using {station.neighbours_used} neighbouring station{station.neighbours_used === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  )}
                   <p
                     style={{
                       color: "#64748b",

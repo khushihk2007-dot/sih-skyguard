@@ -51,12 +51,11 @@ export default function MapView({
         ref={mapRef}
         attributionControl={true}
       >
-        {/* Dark-themed map tiles (CARTO Dark Matter – free, no API key needed) */}
+        {/* Dark-themed map tiles (Esri World Dark Gray Canvas – free, no API key) */}
 <TileLayer
-  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-  subdomains="abcd"
-/>  
+  attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, FAO, NOAA, USGS'
+  url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+/>
 
         <FlyToStation station={selectedStation} />
 

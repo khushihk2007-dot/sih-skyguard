@@ -156,14 +156,16 @@ export default function Dashboard() {
       </header>
 
       {/* ═══ Main Content ═══ */}
-      <main className="flex-1 flex flex-col gap-3 p-4 overflow-hidden">
+      <main className="flex-1 flex flex-col gap-3 p-4 min-h-0 overflow-hidden">
         {/* Row 1 – Status Cards */}
-        <StatusCards stations={stations} />
+        <div className="shrink-0">
+          <StatusCards stations={stations} />
+        </div>
 
         {/* Row 2 – Map + Sidebar */}
-        <div className="flex-1 flex gap-3 min-h-0">
-          {/* Left – Map (takes ~65% width) */}
-          <div className="flex-[2] min-w-0">
+        <div className="flex-1 flex gap-3 min-h-0 h-full overflow-hidden">
+          {/* Left – Map (takes remaining width) */}
+          <div className="flex-1 min-w-0 h-full">
             <MapView
               stations={stations}
               selectedStation={selected}
@@ -171,8 +173,11 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Right sidebar (takes ~35% width) */}
-          <div className="flex-[1] flex flex-col gap-3 min-w-[340px] max-w-[420px] h-full overflow-y-auto pr-1.5">
+          {/* Right sidebar (takes ~380-420px width, fully scrollable) */}
+          <aside
+            className="w-[380px] lg:w-[420px] shrink-0 h-full min-h-0 flex flex-col gap-3 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar"
+            style={{ maxHeight: "100%" }}
+          >
             {selected ? (
               <>
                 {/* Station detail card */}
@@ -186,7 +191,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Tickets panel */}
-                <div className="shrink-0 h-[400px]">
+                <div className="shrink-0 h-[380px]">
                   <TicketPanel
                     onSelectStation={handleSelectStationById}
                     selectedStationId={selected?.id ?? null}
@@ -217,7 +222,7 @@ export default function Dashboard() {
                 </div>
               </>
             )}
-          </div>
+          </aside>
         </div>
       </main>
     </div>

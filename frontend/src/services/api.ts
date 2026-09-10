@@ -116,8 +116,12 @@ export async function fetchStations(): Promise<{ data: Station[]; live: boolean 
   try {
     const res = await api.get("/stations/status");
 
-    // Backend returns a direct array: [{ station_id, name, latitude, ... }, ...]
-    const raw: any[] = Array.isArray(res.data) ? res.data : [];
+    // Backend returns { stations: [...], count: N } or a direct array
+    const raw: any[] = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.stations)
+      ? res.data.stations
+      : [];
 
     console.log(`[WitnessNet] API Success – ${raw.length} stations received – using live data`);
 

@@ -44,9 +44,8 @@ if sys.platform == "win32":
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════
 
-# Backend base URL (change if running on a different host/port)
+# Backend base URL (default local, or pass --url https://sih-skyguard.onrender.com)
 API_BASE_URL: str = "http://localhost:8000"
-ARBITRATE_ENDPOINT: str = f"{API_BASE_URL}/api/ingest/arbitrate"
 
 # Default seconds between ticks (overridden by --interval CLI arg)
 DEFAULT_INTERVAL: int = 8
@@ -158,8 +157,14 @@ class StationSimulator:
     offsets at the scheduled tick to produce anomalies.
     """
 
-    def __init__(self, interval: int = DEFAULT_INTERVAL) -> None:
+    def __init__(
+        self,
+        interval: int = DEFAULT_INTERVAL,
+        api_base_url: str = API_BASE_URL,
+    ) -> None:
         self.interval: int = interval
+        self.api_base_url: str = api_base_url.rstrip("/")
+        self.arbitrate_endpoint: str = f"{self.api_base_url}/api/ingest/arbitrate"
         self.tick: int = 0
 
         # Seed the RNG so scenarios are deterministic and repeatable
@@ -247,7 +252,7 @@ class StationSimulator:
         """
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                resp = await client.post(ARBITRATE_ENDPOINT, json=payload)
+                resp = await client.post(self.arbitrate_endpoint, json=payload)
                 resp.raise_for_status()
                 return resp.json()
             except httpx.ConnectError:
@@ -261,8 +266,8 @@ class StationSimulator:
                 else:
                     print(
                         f"  {C.RED}[X] Backend unreachable after "
-                        f"{MAX_RETRIES} attempts. Is uvicorn running "
-                        f"on {API_BASE_URL}?{C.RESET}"
+                        f"{MAX_RETRIES} attempts. Is backend running "
+                        f"on {self.api_base_url}?{C.RESET}"
                     )
                     return None
             except httpx.HTTPStatusError as exc:
@@ -383,6 +388,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--url", "-u",
+        type=str,
+        default=API_BASE_URL,
+        help=f"Backend base URL (default: {API_BASE_URL})",
+    )
+    parser.add_argument(
         "--interval", "-i",
         type=int,
         default=DEFAULT_INTERVAL,
@@ -412,7 +423,7 @@ async def main() -> None:
             f"  For now, proceeding with simulation as normal.{C.RESET}\n"
         )
 
-    simulator = StationSimulator(interval=args.interval)
+    simulator = StationSimulator(interval=args.interval, api_base_url=args.url)
 
     try:
         await simulator.run()

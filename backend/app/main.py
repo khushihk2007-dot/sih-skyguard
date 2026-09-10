@@ -163,6 +163,78 @@ async def run_migrations() -> None:
                 "🔧 Migration: added 'neighbours_used' column to anomaly_events"
             )
 
+        if "diff_aws_witness" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN diff_aws_witness FLOAT NOT NULL DEFAULT 0.0"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'diff_aws_witness' column to anomaly_events"
+            )
+
+        if "diff_witness_pred" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN diff_witness_pred FLOAT NOT NULL DEFAULT 0.0"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'diff_witness_pred' column to anomaly_events"
+            )
+
+        if "diff_aws_pred" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN diff_aws_pred FLOAT NOT NULL DEFAULT 0.0"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'diff_aws_pred' column to anomaly_events"
+            )
+
+        if "epsilon_used" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN epsilon_used FLOAT NOT NULL DEFAULT 2.0"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'epsilon_used' column to anomaly_events"
+            )
+
+        if "delta_used" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN delta_used FLOAT NOT NULL DEFAULT 1.5"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'delta_used' column to anomaly_events"
+            )
+
+        if "mahalanobis_score" not in existing_cols:
+            await session.execute(
+                __import__("sqlalchemy").text(
+                    "ALTER TABLE anomaly_events "
+                    "ADD COLUMN mahalanobis_score FLOAT NULL DEFAULT 0.0"
+                )
+            )
+            await session.commit()
+            logger.info(
+                "🔧 Migration: added 'mahalanobis_score' column to anomaly_events"
+            )
+
 
 # ── Application Lifespan ─────────────────────────────────────────────
 

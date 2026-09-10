@@ -231,13 +231,13 @@ export async function fetchStationChart(
       witByTime.set(r.recorded_at, r.temperature);
     }
 
-    // Build predicted lookup from anomaly events (keyed by detected_at)
-    const predByTime = new Map<string, number>();
-    for (const t of tickets) {
-      if (t.detected_at && t.t_predicted != null) {
-        predByTime.set(t.detected_at, t.t_predicted);
-      }
-    }
+    // Build predicted lookup from anomaly events (matched by closest timestamp within 30s)
+    const ticketList = tickets
+      .filter((t) => t.detected_at && t.t_predicted != null)
+      .map((t) => ({
+        time: new Date(t.detected_at).getTime(),
+        pred: Number(t.t_predicted),
+      }));
 
     // Collect all unique timestamps and sort chronologically
     const allTimes = new Set<string>([
@@ -250,9 +250,20 @@ export async function fetchStationChart(
 
     // Build chart data points by pairing readings at each timestamp
     const points: ChartDataPoint[] = sortedTimes.map((ts) => {
+      const tsTime = new Date(ts).getTime();
       const awsTemp = awsByTime.get(ts);
       const witTemp = witByTime.get(ts);
-      const predTemp = predByTime.get(ts);
+
+      // Find closest predicted temperature within 30s
+      let predTemp: number | undefined;
+      let minDiff = Infinity;
+      for (const item of ticketList) {
+        const diff = Math.abs(item.time - tsTime);
+        if (diff < 30000 && diff < minDiff) {
+          minDiff = diff;
+          predTemp = item.pred;
+        }
+      }
 
       return {
         time: new Date(ts).toLocaleTimeString("en-IN", {

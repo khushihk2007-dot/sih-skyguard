@@ -30,17 +30,24 @@ export default function StationChart({ station }: StationChartProps) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
-    fetchStationChart(station.id).then((chartData) => {
+    const loadData = async () => {
+      const chartData = await fetchStationChart(station.id);
       if (!cancelled) {
         setData(chartData);
         setLoading(false);
       }
-    });
+    };
+
+    setLoading(true);
+    loadData();
+
+    // Poll every 5s for live sensor updates
+    const interval = setInterval(loadData, 5000);
 
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [station.id]);
 

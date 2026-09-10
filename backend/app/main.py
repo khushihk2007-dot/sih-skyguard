@@ -188,7 +188,21 @@ async def lifespan(app: FastAPI):
 
     await run_migrations()
 
-    await seed_stations()
+    # Self-healing seed: Render's free tier wipes the filesystem
+    # (including witness_network.db) on every restart, so we check
+    # if the Station table is empty and reseed automatically.
+    async with async_session() as session:
+        result = await session.execute(select(Station))
+        station_count = len(result.scalars().all())
+
+    if station_count == 0:
+        logger.warning(
+            "⚠️  Station table is empty (likely a fresh deploy / "
+            "Render filesystem wipe) – reseeding…"
+        )
+        await seed_stations()
+    else:
+        logger.info(f"✅ {station_count} station(s) already present – skipping seed")
 
     if settings.MQTT_ENABLED:
         await mqtt_client.start()

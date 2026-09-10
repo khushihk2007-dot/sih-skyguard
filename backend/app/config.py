@@ -59,7 +59,11 @@ class Settings(BaseSettings):
     PREDICTION_WINDOW_SIZE: int = 24
 
     # ── CORS Origins (comma-separated in env) ─────────────────────────
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    CORS_ORIGINS: list[str] = [
+        "https://sih-skyguard.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
     class Config:
         env_file = ".env"
